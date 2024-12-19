@@ -1,7 +1,7 @@
 streamlit
 opencv-python
 cmake
-dlib==19.24.0
+pip install dlib==19.24.0 --only-binary :all:
 imutils
 numpy
 scipy
