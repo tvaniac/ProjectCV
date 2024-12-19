@@ -1,6 +1,6 @@
 streamlit
 opencv-python
-pip install dlib==19.24.0 
+dlib==19.24.0 
 imutils
 numpy
 scipy
