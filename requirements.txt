@@ -1,12 +1,7 @@
-# streamlit
-# pandas
-# numpy
-# plotly 
-# dlib 
-
 streamlit
 opencv-python
 dlib
 imutils
 numpy
 scipy
+cmake
