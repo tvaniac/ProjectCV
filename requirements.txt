@@ -1,7 +1,6 @@
 streamlit
 opencv-python
-dlib
+dlib==19.22.1
 imutils
 numpy
 scipy
-cmake
