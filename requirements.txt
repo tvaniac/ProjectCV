@@ -6,4 +6,4 @@ dlib==19.24.0
 imutils
 numpy
 scipy
-opencv-python-headless==4.8.0.74
+opencv-python-headless==4.8.0.76
