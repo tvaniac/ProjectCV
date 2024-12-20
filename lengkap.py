@@ -4,14 +4,17 @@ import numpy as np
 import dlib
 from scipy.spatial import distance as dist
 from imutils import face_utils
+from sklearn.metrics import precision_score, recall_score, f1_score
 
 # Constants
 EYE_AR_THRESH = 0.3
 EYE_AR_CONSEC_FRAMES = 30
-YAWN_THRESH = 20 
+YAWN_THRESH = 20
 
 # Global variables
 COUNTER = 0
+ground_truth = []  # Simulated ground truth
+predictions = []
 
 # Functions
 def eye_aspect_ratio(eye):
@@ -43,11 +46,10 @@ def lip_distance(shape):
 
 # Load detector and predictor
 detector = cv2.CascadeClassifier('haarcascade_frontalface_default.xml')
-predictor = dlib.shape_predictor('shape_predictor_68_face_landmarks.dat') 
-
+predictor = dlib.shape_predictor('shape_predictor_68_face_landmarks.dat')
 
 # Streamlit UI
-st.title("Drowsiness and Yawn Detection using OpenCV")
+st.title("Drowsiness and Yawn Detection with Metrics")
 st.markdown("**Check the box below to start the camera:**")
 
 FRAME_WINDOW = st.image([])
@@ -73,6 +75,9 @@ if run:
 
         rects = detector.detectMultiScale(gray, scaleFactor=1.1, minNeighbors=5, minSize=(30, 30), flags=cv2.CASCADE_SCALE_IMAGE)
 
+        is_drowsy = False
+        is_yawning = False
+
         for (x, y, w, h) in rects:
             rect = dlib.rectangle(int(x), int(y), int(x + w), int(y + h))
             shape = predictor(gray, rect)
@@ -94,17 +99,24 @@ if run:
                 if COUNTER >= EYE_AR_CONSEC_FRAMES:
                     cv2.putText(frame, "DROWSINESS", (10, 30),
                                 cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 0, 255), 2)
+                    is_drowsy = True
             else:
                 COUNTER = 0
 
             if distance > YAWN_THRESH:
                 cv2.putText(frame, "YAWN", (10, 60),
                             cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 0, 255), 2)
+                is_yawning = True
 
             cv2.putText(frame, f"EAR: {ear:.2f}", (300, 30),
                         cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 0), 2)
             cv2.putText(frame, f"YAWN: {distance:.2f}", (300, 60),
                         cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 0), 2)
+
+        # Simulated ground truth (for example purposes)
+        # Replace this with actual ground truth data
+        ground_truth.append([1, 0])  # [Drowsy, Yawn] in this frame (example)
+        predictions.append([int(is_drowsy), int(is_yawning)])
 
         FRAME_WINDOW.image(cv2.cvtColor(frame, cv2.COLOR_BGR2RGB))
 
@@ -112,9 +124,20 @@ if run:
     st.session_state.cap = None
     FRAME_WINDOW.image([])
     st.checkbox("Run Camera", value=False, key="run_camera")  # Uncheck the checkbox automatically
+
+    # Calculate metrics
+    y_true = np.array(ground_truth).flatten()
+    y_pred = np.array(predictions).flatten()
+    precision = precision_score(y_true, y_pred)
+    recall = recall_score(y_true, y_pred)
+    f1 = f1_score(y_true, y_pred)
+
+    st.write(f"Precision: {precision:.2f}")
+    st.write(f"Recall: {recall:.2f}")
+    st.write(f"F1 Score: {f1:.2f}")
 else:
     if st.session_state.cap is not None:
         st.session_state.cap.release()
         st.session_state.cap = None
         FRAME_WINDOW.image([])
-    st.info("Check 'Run Camera' to start detection.") 
+    st.info("Check 'Run Camera' to start detection.")

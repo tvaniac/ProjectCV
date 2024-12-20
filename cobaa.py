@@ -4,16 +4,37 @@ import numpy as np
 import dlib
 from scipy.spatial import distance as dist
 from imutils import face_utils
+from threading import Thread
+import time
+import winsound
 
 # Constants
 EYE_AR_THRESH = 0.3
 EYE_AR_CONSEC_FRAMES = 30
 YAWN_THRESH = 20 
 
+global COUNTER, alarm_status, alarm_status2
+
 # Global variables
+alarm_status = False
+alarm_status2 = False
+saying = False
 COUNTER = 0
 
 # Functions
+def alarm(msg):
+    global alarm_status
+    global alarm_status2
+    global saying
+
+    while alarm_status:
+        winsound.Beep(1000, 500)
+
+    if alarm_status2:
+        saying = True
+        winsound.Beep(1500, 500)
+        saying = False
+
 def eye_aspect_ratio(eye):
     A = dist.euclidean(eye[1], eye[5])
     B = dist.euclidean(eye[2], eye[4])
@@ -43,27 +64,25 @@ def lip_distance(shape):
 
 # Load detector and predictor
 detector = cv2.CascadeClassifier('haarcascade_frontalface_default.xml')
-predictor = dlib.shape_predictor('shape_predictor_68_face_landmarks.dat') 
-
+predictor = dlib.shape_predictor('shape_predictor_68_face_landmarks.dat')
 
 # Streamlit UI
-st.title("Drowsiness and Yawn Detection using OpenCV")
+st.title("Drowsiness and Yawn Detection")
 st.markdown("**Check the box below to start the camera:**")
+col1, col2, col3 = st.columns(3)
+
+with col1:
+    run = st.checkbox("Run camera")
 
 FRAME_WINDOW = st.image([])
-run = st.checkbox("Run Camera", key="run_camera")
 
 # Video capture
-if "cap" not in st.session_state:
-    st.session_state.cap = None
-
 if run:
-    if st.session_state.cap is None:
-        st.session_state.cap = cv2.VideoCapture(0)
-        st.success("Camera Started!")
+    cap = cv2.VideoCapture(0)
+    time.sleep(1.0)
 
     while run:
-        ret, frame = st.session_state.cap.read()
+        ret, frame = cap.read()
         if not ret:
             st.error("Failed to open webcam.")
             break
@@ -92,14 +111,24 @@ if run:
             if ear < EYE_AR_THRESH:
                 COUNTER += 1
                 if COUNTER >= EYE_AR_CONSEC_FRAMES:
-                    cv2.putText(frame, "DROWSINESS", (10, 30),
+                    if not alarm_status:
+                        alarm_status = True
+                        Thread(target=alarm, args=('Drowsiness Alert',)).start()
+
+                    cv2.putText(frame, "DROWSINESS ALERT!", (10, 30),
                                 cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 0, 255), 2)
             else:
                 COUNTER = 0
+                alarm_status = False
 
             if distance > YAWN_THRESH:
-                cv2.putText(frame, "YAWN", (10, 60),
+                cv2.putText(frame, "Yawn Alert", (10, 60),
                             cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 0, 255), 2)
+                if not alarm_status2 and not saying:
+                    alarm_status2 = True
+                    Thread(target=alarm, args=('Yawn Alert',)).start()
+            else:
+                alarm_status2 = False
 
             cv2.putText(frame, f"EAR: {ear:.2f}", (300, 30),
                         cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 0), 2)
@@ -108,13 +137,6 @@ if run:
 
         FRAME_WINDOW.image(cv2.cvtColor(frame, cv2.COLOR_BGR2RGB))
 
-    st.session_state.cap.release()
-    st.session_state.cap = None
-    FRAME_WINDOW.image([])
-    st.checkbox("Run Camera", value=False, key="run_camera")  # Uncheck the checkbox automatically
+    cap.release()
 else:
-    if st.session_state.cap is not None:
-        st.session_state.cap.release()
-        st.session_state.cap = None
-        FRAME_WINDOW.image([])
-    st.info("Check 'Run Camera' to start detection.") 
+    st.info("Check 'Run camera' to start detection.")
