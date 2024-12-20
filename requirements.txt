@@ -1,7 +1,8 @@
+--find-links https://pypi.anaconda.org/menpo/simple
 pip==24.3.1
 streamlit
 cmake
-dlib==19.24.0 --find-links https://pypi.anaconda.org/menpo/simple
+dlib==19.24.0
 imutils
 numpy
 scipy
