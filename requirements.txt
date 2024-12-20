@@ -1,9 +1,8 @@
---find-links https://pypi.anaconda.org/menpo/simple
 pip==24.3.1
-streamlit
-cmake
+streamlit==1.41.1
+cmake==3.31.2
 dlib==19.24.0
-imutils
-numpy
-scipy
+imutils==0.5.4
+numpy==2.2.0
+scipy==1.14.1
 opencv-python-headless==4.8.0.76
