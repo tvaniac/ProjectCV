@@ -43,7 +43,8 @@ def lip_distance(shape):
 
 # Load detector and predictor
 detector = cv2.CascadeClassifier('haarcascade_frontalface_default.xml')
-predictor = dlib.shape_predictor('shape_predictor_68_face_landmarks.dat')
+predictor = dlib.shape_predictor('shape_predictor_68_face_landmarks.dat') 
+
 
 # Streamlit UI
 st.title("Drowsiness and Yawn Detection using OpenCV")
