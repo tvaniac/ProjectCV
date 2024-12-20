@@ -1,7 +1,9 @@
-cmake
-libgl1
-libglib2.0-0
 build-essential
-libx11-dev
+cmake
+libglib2.0-0
+libsm6
+libxext6
+libxrender-dev
+libfontconfig1
+libice6
 libgtk2.0-dev
-libboost-all-dev 
