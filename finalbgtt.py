@@ -1,17 +1,10 @@
-import streamlit as st
+import os
 import cv2
+from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score, confusion_matrix
 import numpy as np
 import dlib
-from scipy.spatial import distance as dist
 from imutils import face_utils
-
-# Constants
-EYE_AR_THRESH = 0.3
-EYE_AR_CONSEC_FRAMES = 30
-YAWN_THRESH = 20 
-
-# Global variables
-COUNTER = 0
+from scipy.spatial import distance as dist 
 
 # Functions
 def eye_aspect_ratio(eye):
@@ -39,82 +32,87 @@ def lip_distance(shape):
     top_mean = np.mean(top_lip, axis=0)
     low_mean = np.mean(low_lip, axis=0)
     distance = abs(top_mean[1] - low_mean[1])
-    return distance
+    return distance 
+
+# Path ke dataset
+dataset_path = './data_cropped/'  # Ubah path ini sesuai dengan lokasi folder dataset Anda
+categories = ['Active', 'Sleep', 'Yawn']  # Nama folder yang menjadi kategori
 
 # Load detector and predictor
-detector = cv2.CascadeClassifier('haarcascade_frontalface_default.xml')
-predictor = dlib.shape_predictor('shape_predictor_68_face_landmarks.dat') 
+detector = cv2.CascadeClassifier('./haarcascade_frontalface_default.xml')
+predictor = dlib.shape_predictor('./shape_predictor_68_face_landmarks.dat') 
 
+# Ground truth dan prediksi
+ground_truth = []
+predictions = []
 
-# Streamlit UI
-st.title("Drowsiness and Yawn Detection using OpenCV")
-st.markdown("**Check the box below to start the camera:**")
+# Thresholds
+EYE_AR_THRESH = 0.3
+YAWN_THRESH = 20
 
-FRAME_WINDOW = st.image([])
-run = st.checkbox("Run Camera", key="run_camera")
+# Fungsi untuk membaca dataset
+def load_images_from_folder(folder_path, label):
+    images = []
+    labels = []
+    for filename in os.listdir(folder_path):
+        img_path = os.path.join(folder_path, filename)
+        img = cv2.imread(img_path)
+        if img is not None:
+            images.append(img)
+            labels.append(label)  # Label berdasarkan folder
+    return images, labels
 
-# Video capture
-if "cap" not in st.session_state:
-    st.session_state.cap = None
+# Baca dataset dan buat ground truth
+all_images = []
+all_labels = []
 
-if run:
-    if st.session_state.cap is None:
-        st.session_state.cap = cv2.VideoCapture(0)
-        st.success("Camera Started!")
+for idx, category in enumerate(categories):
+    folder_path = os.path.join(dataset_path, category)
+    images, labels = load_images_from_folder(folder_path, idx)  # 0=active, 1=sleep, 2=yawn
+    all_images.extend(images)
+    all_labels.extend(labels)
 
-    while run:
-        ret, frame = st.session_state.cap.read()
-        if not ret:
-            st.error("Failed to open webcam.")
-            break
+ground_truth = all_labels
 
-        frame = cv2.resize(frame, (450, 300))
-        gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+# Fungsi evaluasi untuk Haar Cascade
+def evaluate_image(img):
+    gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+    faces = detector.detectMultiScale(gray, scaleFactor=1.1, minNeighbors=5, minSize=(30, 30), flags=cv2.CASCADE_SCALE_IMAGE)
 
-        rects = detector.detectMultiScale(gray, scaleFactor=1.1, minNeighbors=5, minSize=(30, 30), flags=cv2.CASCADE_SCALE_IMAGE)
+    for (x, y, w, h) in faces:
+        rect = dlib.rectangle(int(x), int(y), int(x + w), int(y + h))
+        shape = predictor(gray, rect)
+        shape = face_utils.shape_to_np(shape)
 
-        for (x, y, w, h) in rects:
-            rect = dlib.rectangle(int(x), int(y), int(x + w), int(y + h))
-            shape = predictor(gray, rect)
-            shape = face_utils.shape_to_np(shape) 
+        ear, _, _ = final_ear(shape)
+        distance = lip_distance(shape)
 
-            ear, leftEye, rightEye = final_ear(shape)
-            distance = lip_distance(shape)
+        if ear < EYE_AR_THRESH:
+            return 1  # Sleep
+        elif distance > YAWN_THRESH:
+            return 2  # Yawn
+        else:
+            return 0  # Active
 
-            leftEyeHull = cv2.convexHull(leftEye)
-            rightEyeHull = cv2.convexHull(rightEye)
-            cv2.drawContours(frame, [leftEyeHull], -1, (0, 255, 0), 1)
-            cv2.drawContours(frame, [rightEyeHull], -1, (0, 255, 0), 1)
+    return 0  # Default ke Active jika wajah tidak terdeteksi
 
-            lip = shape[48:60]
-            cv2.drawContours(frame, [lip], -1, (0, 255, 0), 1)
+# Evaluasi dataset
+for img in all_images:
+    pred = evaluate_image(img)
+    predictions.append(pred)
 
-            if ear < EYE_AR_THRESH:
-                COUNTER += 1
-                if COUNTER >= EYE_AR_CONSEC_FRAMES:
-                    cv2.putText(frame, "DROWSINESS", (10, 30),
-                                cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 0, 255), 2)
-            else:
-                COUNTER = 0
+# Hitung metrik evaluasi
+accuracy = accuracy_score(ground_truth, predictions)
+precision = precision_score(ground_truth, predictions, average='macro')
+recall = recall_score(ground_truth, predictions, average='macro')
+f1 = f1_score(ground_truth, predictions, average='macro')
+confusion = confusion_matrix(ground_truth, predictions)
 
-            if distance > YAWN_THRESH:
-                cv2.putText(frame, "YAWN", (10, 60),
-                            cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 0, 255), 2)
-
-            cv2.putText(frame, f"EAR: {ear:.2f}", (300, 30),
-                        cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 0), 2)
-            cv2.putText(frame, f"YAWN: {distance:.2f}", (300, 60),
-                        cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 0), 2)
-
-        FRAME_WINDOW.image(cv2.cvtColor(frame, cv2.COLOR_BGR2RGB))
-
-    st.session_state.cap.release()
-    st.session_state.cap = None
-    FRAME_WINDOW.image([])
-    st.checkbox("Run Camera", value=False, key="run_camera")  # Uncheck the checkbox automatically
-else:
-    if st.session_state.cap is not None:
-        st.session_state.cap.release()
-        st.session_state.cap = None
-        FRAME_WINDOW.image([])
-    st.info("Check 'Run Camera' to start detection.") 
+# Tampilkan hasil evaluasi
+print("### Evaluation Metrics ###")
+print(f"Accuracy: {accuracy:.2f}")
+print(f"Precision: {precision:.2f}")
+print(f"Recall: {recall:.2f}")
+print(f"F1 Score: {f1:.2f}")
+print("Confusion Matrix:")
+print(confusion)
